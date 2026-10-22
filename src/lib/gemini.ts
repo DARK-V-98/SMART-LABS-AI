@@ -15,7 +15,7 @@ export function gemini(): GoogleGenAI {
 export const MODELS = {
   text: "gemini-3.1-pro-preview",
   image: "imagen-4.0-generate-001",
-  video: "veo-3.0-generate-001",
+  video: "veo-3.1-generate-preview",
   tts: "gemini-2.5-flash-preview-tts",
 };
 
