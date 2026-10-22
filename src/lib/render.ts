@@ -2,16 +2,19 @@ import { spawn } from "child_process";
 import { mkdtemp, writeFile, readFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
+import ffmpegPath from "ffmpeg-static";
 import { Scene, Storyboard } from "@/types/storyboard";
 
-function run(cmd: string, args: string[]): Promise<void> {
+function run(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(ffmpegPath as unknown as string, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let stderr = "";
     proc.stderr.on("data", (d) => (stderr += d.toString()));
     proc.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`${cmd} exited ${code}: ${stderr.slice(-2000)}`));
+      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-2000)}`));
     });
   });
 }
@@ -57,7 +60,7 @@ async function buildSceneClip(
         : "";
 
   if (scene.assetType === "image") {
-    await run("ffmpeg", [
+    await run([
       "-y",
       "-loop",
       "1",
@@ -79,7 +82,7 @@ async function buildSceneClip(
       outPath,
     ]);
   } else {
-    await run("ffmpeg", [
+    await run([
       "-y",
       "-i",
       visualPath,
@@ -123,7 +126,7 @@ export async function renderStoryboard(storyboard: Storyboard): Promise<Buffer> 
     );
 
     const finalPath = path.join(workDir, "final.mp4");
-    await run("ffmpeg", [
+    await run([
       "-y",
       "-f",
       "concat",

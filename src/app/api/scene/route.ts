@@ -9,6 +9,8 @@ import { adminDb, adminStorage } from "@/lib/firebase-admin";
 import { pcm16ToWav } from "@/lib/wav";
 import { Scene, Storyboard } from "@/types/storyboard";
 
+export const maxDuration = 300;
+
 const SceneGenInputSchema = z.object({
   projectId: z.string(),
   sceneId: z.string(),

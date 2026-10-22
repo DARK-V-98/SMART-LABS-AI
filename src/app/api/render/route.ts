@@ -4,6 +4,8 @@ import { adminDb, adminStorage } from "@/lib/firebase-admin";
 import { renderStoryboard } from "@/lib/render";
 import { Storyboard } from "@/types/storyboard";
 
+export const maxDuration = 300;
+
 const RenderInputSchema = z.object({ projectId: z.string() });
 
 export async function POST(req: NextRequest) {

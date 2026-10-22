@@ -4,6 +4,8 @@ import { gemini, MODELS, storyboardResponseSchema } from "@/lib/gemini";
 import { adminDb } from "@/lib/firebase-admin";
 import { StoryboardGenInputSchema, StoryboardSchema } from "@/types/storyboard";
 
+export const maxDuration = 60;
+
 const SYSTEM_PROMPT = `You are an expert video director for SmartLabs marketing videos.
 Given a product/campaign brief, break it into a scene-by-scene storyboard for a short
 animated marketing video. Keep scenes punchy (3-8 seconds each), write voiceover lines
