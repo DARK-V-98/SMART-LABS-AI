@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Prototype rules: anyone can read project docs (needed for the client's
+    // onSnapshot render-progress listener), only the server (admin SDK,
+    // which bypasses these rules) can write. Add auth-based scoping before
+    // this is multi-tenant.
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

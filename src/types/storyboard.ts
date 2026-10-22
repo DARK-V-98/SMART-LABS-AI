@@ -15,13 +15,24 @@ export const SceneSchema = z.object({
   status: z.enum(["pending", "generating", "ready", "failed"]).default("pending"),
 });
 
+export const BrandingSchema = z.object({
+  logoUrl: z.string().url().optional(),
+  brandColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  musicUrl: z.string().url().optional(),
+});
+
 export const StoryboardSchema = z.object({
   title: z.string(),
   brand: z.string().default("SmartLabs"),
   summary: z.string(),
   scenes: z.array(SceneSchema).min(1),
+  branding: BrandingSchema.default({}),
 });
 
+export type Branding = z.infer<typeof BrandingSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Storyboard = z.infer<typeof StoryboardSchema>;
 

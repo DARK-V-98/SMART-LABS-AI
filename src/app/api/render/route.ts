@@ -9,8 +9,9 @@ export const maxDuration = 300;
 const RenderInputSchema = z.object({ projectId: z.string() });
 
 export async function POST(req: NextRequest) {
+  let projectId: string | undefined;
   try {
-    const { projectId } = RenderInputSchema.parse(await req.json());
+    ({ projectId } = RenderInputSchema.parse(await req.json()));
 
     const projectRef = adminDb().collection("projects").doc(projectId);
     const projectDoc = await projectRef.get();
@@ -27,7 +28,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const videoBuffer = await renderStoryboard(storyboard);
+    await projectRef.set({ renderProgress: { stage: "encoding-scene", current: 0, total: storyboard.scenes.length } }, { merge: true });
+
+    const videoBuffer = await renderStoryboard(storyboard, async (progress) => {
+      await projectRef.set({ renderProgress: progress }, { merge: true });
+    });
 
     const bucket = adminStorage().bucket();
     const filePath = `projects/${projectId}/final/${Date.now()}.mp4`;
@@ -37,13 +42,24 @@ export async function POST(req: NextRequest) {
     const videoUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
     await projectRef.set(
-      { renderedVideoUrl: videoUrl, renderedAt: new Date().toISOString() },
+      {
+        renderedVideoUrl: videoUrl,
+        renderedAt: new Date().toISOString(),
+        renderProgress: null,
+      },
       { merge: true }
     );
 
     return NextResponse.json({ videoUrl });
   } catch (err) {
     console.error("render failed", err);
+    if (projectId) {
+      await adminDb()
+        .collection("projects")
+        .doc(projectId)
+        .set({ renderProgress: null }, { merge: true })
+        .catch(() => {});
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
       { status: 400 }
