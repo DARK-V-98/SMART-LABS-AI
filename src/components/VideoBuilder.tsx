@@ -7,8 +7,17 @@ import BrandingPanel from "@/components/BrandingPanel";
 import SceneCard from "@/components/SceneCard";
 import type { Scene, Storyboard } from "@/types/storyboard";
 
+type AspectRatio = "16:9" | "9:16" | "1:1";
+
+const FORMAT_OPTIONS: { value: AspectRatio; label: string }[] = [
+  { value: "16:9", label: "16:9 (YouTube)" },
+  { value: "9:16", label: "9:16 (Reels/TikTok)" },
+  { value: "1:1", label: "1:1 (Feed)" },
+];
+
 type RenderProgress = {
   stage: "encoding-scene" | "concatenating" | "done";
+  format: AspectRatio;
   current: number;
   total: number;
 } | null;
@@ -35,7 +44,8 @@ export default function VideoBuilder() {
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [busy, setBusy] = useState(false);
   const [generatingSceneId, setGeneratingSceneId] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoUrls, setVideoUrls] = useState<Partial<Record<AspectRatio, string>>>({});
+  const [selectedFormats, setSelectedFormats] = useState<AspectRatio[]>(["16:9"]);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -75,7 +85,7 @@ export default function VideoBuilder() {
   function startNewProject() {
     setProjectId(null);
     setStoryboard(null);
-    setVideoUrl(null);
+    setVideoUrls({});
     setMessages([INITIAL_MESSAGE]);
     setError(null);
   }
@@ -89,7 +99,7 @@ export default function VideoBuilder() {
       if (!res.ok) throw new Error(data.error || "Failed to load project");
       setProjectId(id);
       setStoryboard(data.storyboard);
-      setVideoUrl(data.renderedVideoUrl ?? null);
+      setVideoUrls(data.renderedVideoUrls ?? (data.renderedVideoUrl ? { "16:9": data.renderedVideoUrl } : {}));
       setMessages([
         INITIAL_MESSAGE,
         { role: "user", text: data.brief },
@@ -121,7 +131,7 @@ export default function VideoBuilder() {
       if (!res.ok) throw new Error(data.error || "Failed to generate storyboard");
       setProjectId(data.projectId);
       setStoryboard(data.storyboard);
-      setVideoUrl(null);
+      setVideoUrls({});
       setMessages((m) => [
         ...m,
         {
@@ -165,24 +175,30 @@ export default function VideoBuilder() {
   }
 
   async function renderVideo() {
-    if (!projectId) return;
+    if (!projectId || selectedFormats.length === 0) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, formats: selectedFormats }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Render failed");
-      setVideoUrl(data.videoUrl);
+      setVideoUrls(data.videoUrls);
       refreshProjects();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleFormat(format: AspectRatio) {
+    setSelectedFormats((prev) =>
+      prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
+    );
   }
 
   const allReady =
@@ -282,10 +298,22 @@ export default function VideoBuilder() {
                 <h2 className="text-xl font-semibold">{storyboard.title}</h2>
                 <p className="text-sm text-zinc-500">{storyboard.summary}</p>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex gap-2 text-xs">
+                  {FORMAT_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedFormats.includes(opt.value)}
+                        onChange={() => toggleFormat(opt.value)}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
                 <button
                   onClick={renderVideo}
-                  disabled={!allReady || busy}
+                  disabled={!allReady || busy || selectedFormats.length === 0}
                   className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {busy ? "Rendering..." : "Render final video"}
@@ -293,8 +321,8 @@ export default function VideoBuilder() {
                 {renderProgress && renderProgress.stage !== "done" && (
                   <span className="text-xs text-zinc-500">
                     {renderProgress.stage === "encoding-scene"
-                      ? `Encoding scene ${renderProgress.current}/${renderProgress.total}`
-                      : "Combining scenes..."}
+                      ? `[${renderProgress.format}] Encoding scene ${renderProgress.current}/${renderProgress.total}`
+                      : `[${renderProgress.format}] Combining scenes...`}
                   </span>
                 )}
               </div>
@@ -334,10 +362,24 @@ export default function VideoBuilder() {
               ))}
             </div>
 
-            {videoUrl && (
-              <div className="mt-6">
-                <h3 className="mb-2 font-semibold">Final video</h3>
-                <video src={videoUrl} controls className="w-full max-w-2xl rounded-lg" />
+            {Object.keys(videoUrls).length > 0 && (
+              <div className="mt-6 flex flex-wrap gap-6">
+                {(Object.entries(videoUrls) as [AspectRatio, string][]).map(([format, url]) => (
+                  <div key={format}>
+                    <h3 className="mb-2 font-semibold">Final video ({format})</h3>
+                    <video
+                      src={url}
+                      controls
+                      className={
+                        format === "9:16"
+                          ? "h-96 w-auto rounded-lg"
+                          : format === "1:1"
+                            ? "h-72 w-72 rounded-lg"
+                            : "w-full max-w-2xl rounded-lg"
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </>

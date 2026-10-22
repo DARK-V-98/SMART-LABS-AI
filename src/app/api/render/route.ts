@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb, adminStorage } from "@/lib/firebase-admin";
-import { renderStoryboard } from "@/lib/render";
+import { renderStoryboard, type AspectRatio } from "@/lib/render";
 import { Storyboard } from "@/types/storyboard";
 
 export const maxDuration = 300;
 
-const RenderInputSchema = z.object({ projectId: z.string() });
+const RenderInputSchema = z.object({
+  projectId: z.string(),
+  formats: z.array(z.enum(["16:9", "9:16", "1:1"])).min(1).default(["16:9"]),
+});
 
 export async function POST(req: NextRequest) {
   let projectId: string | undefined;
   try {
-    ({ projectId } = RenderInputSchema.parse(await req.json()));
+    let formats: AspectRatio[];
+    ({ projectId, formats } = RenderInputSchema.parse(await req.json()));
 
     const projectRef = adminDb().collection("projects").doc(projectId);
     const projectDoc = await projectRef.get();
@@ -28,29 +32,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await projectRef.set({ renderProgress: { stage: "encoding-scene", current: 0, total: storyboard.scenes.length } }, { merge: true });
+    await projectRef.set(
+      { renderProgress: { stage: "encoding-scene", format: formats[0], current: 0, total: storyboard.scenes.length } },
+      { merge: true }
+    );
 
-    const videoBuffer = await renderStoryboard(storyboard, async (progress) => {
+    const videoBuffers = await renderStoryboard(storyboard, formats, async (progress) => {
       await projectRef.set({ renderProgress: progress }, { merge: true });
     });
 
     const bucket = adminStorage().bucket();
-    const filePath = `projects/${projectId}/final/${Date.now()}.mp4`;
-    const file = bucket.file(filePath);
-    await file.save(videoBuffer, { contentType: "video/mp4" });
-    await file.makePublic();
-    const videoUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+    const videoUrls: Partial<Record<AspectRatio, string>> = {};
+    for (const format of formats) {
+      const buffer = videoBuffers[format];
+      const filePath = `projects/${projectId}/final/${format.replace(":", "x")}-${Date.now()}.mp4`;
+      const file = bucket.file(filePath);
+      await file.save(buffer, { contentType: "video/mp4" });
+      await file.makePublic();
+      videoUrls[format] = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+    }
 
     await projectRef.set(
       {
-        renderedVideoUrl: videoUrl,
+        renderedVideoUrls: videoUrls,
+        renderedVideoUrl: videoUrls["16:9"] ?? Object.values(videoUrls)[0],
         renderedAt: new Date().toISOString(),
         renderProgress: null,
       },
       { merge: true }
     );
 
-    return NextResponse.json({ videoUrl });
+    return NextResponse.json({ videoUrls });
   } catch (err) {
     console.error("render failed", err);
     if (projectId) {
