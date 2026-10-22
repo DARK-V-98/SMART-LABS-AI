@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import BrandingPanel from "@/components/BrandingPanel";
+import SceneCard from "@/components/SceneCard";
 import type { Scene, Storyboard } from "@/types/storyboard";
 
 type RenderProgress = {
@@ -59,7 +60,16 @@ export default function VideoBuilder() {
   }
 
   useEffect(() => {
-    refreshProjects();
+    let cancelled = false;
+    fetch("/api/projects")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setProjects(data.projects ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function startNewProject() {
@@ -302,47 +312,25 @@ export default function VideoBuilder() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {storyboard.scenes.map((scene: Scene) => (
-                <div
+                <SceneCard
                   key={scene.id}
-                  className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
-                >
-                  <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
-                    <span>Scene {scene.order + 1}</span>
-                    <span>{scene.durationSeconds}s</span>
-                  </div>
-                  {scene.assetUrl && scene.assetType === "image" && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={scene.assetUrl}
-                      alt=""
-                      className="mb-2 aspect-video w-full rounded-md object-cover"
-                    />
-                  )}
-                  {scene.assetUrl && scene.assetType === "video" && (
-                    <video
-                      src={scene.assetUrl}
-                      className="mb-2 aspect-video w-full rounded-md"
-                      controls
-                    />
-                  )}
-                  <p className="mb-2 line-clamp-3 text-sm">{scene.voiceoverText}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs capitalize text-zinc-500">
-                      {scene.status}
-                    </span>
-                    <button
-                      onClick={() => generateScene(scene.id)}
-                      disabled={generatingSceneId === scene.id}
-                      className="rounded-md border border-zinc-300 px-3 py-1 text-xs font-medium disabled:opacity-50 dark:border-zinc-700"
-                    >
-                      {generatingSceneId === scene.id
-                        ? "Generating..."
-                        : scene.status === "ready"
-                          ? "Regenerate"
-                          : "Generate"}
-                    </button>
-                  </div>
-                </div>
+                  scene={scene}
+                  projectId={projectId!}
+                  generating={generatingSceneId === scene.id}
+                  onGenerate={generateScene}
+                  onSceneUpdated={(updated) =>
+                    setStoryboard((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            scenes: prev.scenes.map((s) =>
+                              s.id === updated.id ? updated : s
+                            ),
+                          }
+                        : prev
+                    )
+                  }
+                />
               ))}
             </div>
 

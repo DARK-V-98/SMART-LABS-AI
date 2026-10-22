@@ -63,6 +63,21 @@ export async function generateVoiceover(text: string): Promise<Buffer> {
   return Buffer.from(data, "base64");
 }
 
+const sceneFieldProperties = {
+  durationSeconds: { type: Type.NUMBER },
+  visualPrompt: { type: Type.STRING },
+  voiceoverText: { type: Type.STRING },
+  onScreenText: { type: Type.STRING },
+  transition: { type: Type.STRING, enum: ["cut", "fade", "wipe", "zoom"] },
+  cameraMove: {
+    type: Type.STRING,
+    enum: ["static", "pan-left", "pan-right", "zoom-in", "zoom-out"],
+  },
+  assetType: { type: Type.STRING, enum: ["image", "video"] },
+};
+
+const sceneFieldKeys = Object.keys(sceneFieldProperties);
+
 export const storyboardResponseSchema = {
   type: Type.OBJECT,
   properties: {
@@ -76,29 +91,17 @@ export const storyboardResponseSchema = {
         properties: {
           id: { type: Type.STRING },
           order: { type: Type.INTEGER },
-          durationSeconds: { type: Type.NUMBER },
-          visualPrompt: { type: Type.STRING },
-          voiceoverText: { type: Type.STRING },
-          onScreenText: { type: Type.STRING },
-          transition: { type: Type.STRING, enum: ["cut", "fade", "wipe", "zoom"] },
-          cameraMove: {
-            type: Type.STRING,
-            enum: ["static", "pan-left", "pan-right", "zoom-in", "zoom-out"],
-          },
-          assetType: { type: Type.STRING, enum: ["image", "video"] },
+          ...sceneFieldProperties,
         },
-        required: [
-          "id",
-          "order",
-          "durationSeconds",
-          "visualPrompt",
-          "voiceoverText",
-          "transition",
-          "cameraMove",
-          "assetType",
-        ],
+        required: ["id", "order", ...sceneFieldKeys],
       },
     },
   },
   required: ["title", "brand", "summary", "scenes"],
+};
+
+export const sceneEditResponseSchema = {
+  type: Type.OBJECT,
+  properties: sceneFieldProperties,
+  required: sceneFieldKeys,
 };
