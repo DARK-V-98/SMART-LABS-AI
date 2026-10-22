@@ -26,7 +26,7 @@ export type Scene = z.infer<typeof SceneSchema>;
 export type Storyboard = z.infer<typeof StoryboardSchema>;
 
 export const StoryboardGenInputSchema = z.object({
-  projectId: z.string().optional(),
+  projectId: z.string().nullable().optional(),
   brief: z.string().min(1),
   targetDurationSeconds: z.number().positive().default(30),
 });
